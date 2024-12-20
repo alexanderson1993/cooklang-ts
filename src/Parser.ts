@@ -1,5 +1,5 @@
-import { comment, blockComment, shoppingList as shoppingListRegex, tokens } from './tokens';
-import { Ingredient, Cookware, Step, Metadata, Item, ShoppingList } from './cooklang';
+import { comment, blockComment, shoppingList as shoppingListRegex, tokens } from "./tokens";
+import { Ingredient, Cookware, Step, Metadata, Item, ShoppingList } from "./cooklang";
 
 /**
  * @property defaultCookwareAmount The default value to pass if there is no cookware amount. By default the amount is 1
@@ -25,7 +25,7 @@ export default class Parser {
     defaultCookwareAmount: string | number;
     defaultIngredientAmount: string | number;
     includeStepNumber: boolean;
-    defaultUnits = '';
+    defaultUnits = "";
 
     /**
      * Creates a new parser with the supplied options
@@ -34,7 +34,7 @@ export default class Parser {
      */
     constructor(options?: ParserOptions) {
         this.defaultCookwareAmount = options?.defaultCookwareAmount ?? 1;
-        this.defaultIngredientAmount = options?.defaultIngredientAmount ?? 'some';
+        this.defaultIngredientAmount = options?.defaultIngredientAmount ?? "some";
         this.includeStepNumber = options?.includeStepNumber ?? false;
     }
 
@@ -54,16 +54,14 @@ export default class Parser {
         const shoppingList: ShoppingList = {};
 
         // Comments
-        source = source.replace(comment, '').replace(blockComment, ' ');
+        source = source.replace(comment, "").replace(blockComment, " ");
 
         // Parse shopping lists
         for (let match of source.matchAll(shoppingListRegex)) {
-            const groups = match.groups;
-            if (!groups) continue;
+            const groups = createNamedGroups(match, "shoppingList");
+            if (!groups?.name) continue;
 
-            shoppingList[groups.name] = parseShoppingListCategory(
-                groups.items || ''
-            );
+            shoppingList[groups.name] = parseShoppingListCategory(groups.items || "");
 
             // Remove it from the source
             source = source.substring(0, match.index || 0);
@@ -80,12 +78,10 @@ export default class Parser {
 
             let pos = 0;
             for (let match of line.matchAll(tokens)) {
-                const groups = match.groups;
-                if (!groups) continue;
-
                 // metadata
-                if (groups.key && groups.value) {
-                    metadata[groups.key.trim()] = groups.value.trim();
+                const metadataGroups = createNamedGroups(match, "metadata");
+                if (metadataGroups?.key && metadataGroups.value) {
+                    metadata[metadataGroups.key.trim()] = metadataGroups.value.trim();
 
                     continue stepLoop;
                 }
@@ -93,16 +89,17 @@ export default class Parser {
                 // text
                 if (pos < (match.index || 0)) {
                     step.push({
-                        type: 'text',
+                        type: "text",
                         value: line.substring(pos, match.index),
                     });
                 }
 
                 // single word ingredient
-                if (groups.sIngredientName) {
+                const sIngredientGroup = createNamedGroups(match, "singleWordIngredient");
+                if (sIngredientGroup?.sIngredientName) {
                     const ingredient: Ingredient = {
-                        type: 'ingredient',
-                        name: groups.sIngredientName,
+                        type: "ingredient",
+                        name: sIngredientGroup.sIngredientName,
                         quantity: this.defaultIngredientAmount,
                         units: this.defaultUnits,
                     };
@@ -114,15 +111,16 @@ export default class Parser {
                 }
 
                 // multiword ingredient
-                if (groups.mIngredientName) {
+                const mIngredientGroup = createNamedGroups(match, "multiwordIngredient");
+                if (mIngredientGroup?.mIngredientName) {
                     const ingredient: Ingredient = {
-                        type: 'ingredient',
-                        name: groups.mIngredientName,
-                        quantity:
-                            parseQuantity(groups.mIngredientQuantity) ??
-                            this.defaultIngredientAmount,
-                        units: parseUnits(groups.mIngredientUnits) ?? this.defaultUnits,
-                        ...(groups.mIngredientPreparation ? { preparation: groups.mIngredientPreparation } : null),
+                        type: "ingredient",
+                        name: mIngredientGroup.mIngredientName,
+                        quantity: parseQuantity(mIngredientGroup.mIngredientQuantity) ?? this.defaultIngredientAmount,
+                        units: parseUnits(mIngredientGroup.mIngredientUnits) ?? this.defaultUnits,
+                        ...(mIngredientGroup.mIngredientPreparation
+                            ? { preparation: mIngredientGroup.mIngredientPreparation }
+                            : null),
                     };
 
                     if (this.includeStepNumber) ingredient.step = stepNumber;
@@ -132,10 +130,11 @@ export default class Parser {
                 }
 
                 // single word cookware
-                if (groups.sCookwareName) {
+                const sCookwareGroup = createNamedGroups(match, "singleWordCookware");
+                if (sCookwareGroup?.sCookwareName) {
                     const cookware: Cookware = {
-                        type: 'cookware',
-                        name: groups.sCookwareName,
+                        type: "cookware",
+                        name: sCookwareGroup.sCookwareName,
                         quantity: this.defaultCookwareAmount,
                     };
 
@@ -146,13 +145,12 @@ export default class Parser {
                 }
 
                 // multiword cookware
-                if (groups.mCookwareName) {
+                const mCookwareGroup = createNamedGroups(match, "multiwordCookware");
+                if (mCookwareGroup?.mCookwareName) {
                     const cookware: Cookware = {
-                        type: 'cookware',
-                        name: groups.mCookwareName,
-                        quantity:
-                            parseQuantity(groups.mCookwareQuantity) ??
-                            this.defaultCookwareAmount,
+                        type: "cookware",
+                        name: mCookwareGroup?.mCookwareName,
+                        quantity: parseQuantity(mCookwareGroup?.mCookwareQuantity) ?? this.defaultCookwareAmount,
                     };
 
                     if (this.includeStepNumber) cookware.step = stepNumber;
@@ -162,12 +160,13 @@ export default class Parser {
                 }
 
                 // timer
-                if (groups.timerQuantity) {
+                const timerGroup = createNamedGroups(match, "timer");
+                if (timerGroup?.timerQuantity) {
                     step.push({
-                        type: 'timer',
-                        name: groups.timerName,
-                        quantity: parseQuantity(groups.timerQuantity) ?? 0,
-                        units: parseUnits(groups.timerUnits) ?? this.defaultUnits,
+                        type: "timer",
+                        name: timerGroup.timerName,
+                        quantity: parseQuantity(timerGroup.timerQuantity) ?? 0,
+                        units: parseUnits(timerGroup.timerUnits) ?? this.defaultUnits,
                     });
                 }
 
@@ -178,7 +177,7 @@ export default class Parser {
             if (pos < line.length) {
                 // Add the rest as a text item
                 step.push({
-                    type: 'text',
+                    type: "text",
                     value: line.substring(pos),
                 });
             }
@@ -194,20 +193,21 @@ export default class Parser {
 }
 
 function parseQuantity(quantity?: string): string | number | undefined {
-    if (!quantity || quantity.trim() === '') {
+    if (!quantity || quantity.trim() === "") {
         return undefined;
     }
 
     quantity = quantity.trim();
 
-    const [left, right] = quantity.split('/');
+    const [left, right] = quantity.split("/");
 
     const [numLeft, numRight] = [Number(left), Number(right)];
 
     if (right && isNaN(numRight)) return quantity;
 
     if (!isNaN(numLeft) && !numRight) return numLeft;
-    else if (!isNaN(numLeft) && !isNaN(numRight) && !(left.startsWith('0') || right.startsWith('0'))) return numLeft / numRight;
+    else if (!isNaN(numLeft) && !isNaN(numRight) && !(left.startsWith("0") || right.startsWith("0")))
+        return numLeft / numRight;
 
     return quantity.trim();
 }
@@ -223,18 +223,99 @@ function parseUnits(units?: string): string | undefined {
 function parseShoppingListCategory(items: string): Array<Item> {
     const list = [];
 
-    for (let item of items.split('\n')) {
+    for (let item of items.split("\n")) {
         item = item.trim();
 
-        if (item == '') continue;
+        if (item == "") continue;
 
-        const [name, synonym] = item.split('|');
+        const [name, synonym] = item.split("|");
 
         list.push({
             name: name.trim(),
-            synonym: synonym?.trim() || '',
-        })
+            synonym: synonym?.trim() || "",
+        });
     }
 
     return list;
+}
+
+function createNamedGroups(
+    match: RegExpMatchArray,
+    type:
+        | "metadata"
+        | "multiwordIngredient"
+        | "singleWordIngredient"
+        | "multiwordCookware"
+        | "singleWordCookware"
+        | "timer"
+        | "shoppingList"
+) {
+    if (!match) return null;
+
+    const groupMappings = {
+        metadata: {
+            key: 1,
+            value: 2,
+        },
+        multiwordIngredient: {
+            mIngredientName: 3,
+            mIngredientQuantity: 4,
+            mIngredientUnits: 5,
+            mIngredientPreparation: 6,
+        },
+        singleWordIngredient: {
+            sIngredientName: 7,
+        },
+        multiwordCookware: {
+            mCookwareName: 8,
+            mCookwareQuantity: 9,
+        },
+        singleWordCookware: {
+            sCookwareName: 10,
+        },
+        timer: {
+            timerName: 11,
+            timerQuantity: 12,
+            timerUnits: 13,
+        },
+        shoppingList: {
+            name: 14,
+            items: 15,
+        },
+    } as const;
+
+    const mapping = groupMappings[type];
+    if (!mapping) {
+        throw new Error(`Unknown regex type: ${type}`);
+    }
+
+    const groups: Partial<{
+        key: string;
+        value: string;
+        mIngredientName: string;
+        mIngredientQuantity: string;
+        mIngredientUnits: string;
+        mIngredientPreparation: string;
+        sIngredientName: string;
+        mCookwareName: string;
+        mCookwareQuantity: string;
+        sCookwareName: string;
+        timerName: string;
+        timerQuantity: string;
+        timerUnits: string;
+        name: string;
+        items: string;
+    }> = {};
+    if (type === "singleWordIngredient" && match[0].includes("oil")) {
+        console.log(type, match);
+    }
+    for (const [groupName, index] of Object.entries(mapping)) {
+        // Only add the group if it was captured (not undefined)
+        if (match[index] !== undefined) {
+            // @ts-expect-error
+            groups[groupName] = match[index];
+        }
+    }
+
+    return groups;
 }

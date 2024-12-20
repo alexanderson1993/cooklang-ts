@@ -55,8 +55,8 @@ export default class Recipe {
                     stepStr += '{';
                     if (item.quantity) stepStr += item.quantity;
                     if ('units' in item && item.units) stepStr += '%' + item.units;
-                    if ('preparation' in item && item.preparation) stepStr += `(${item.preparation})`
                     stepStr += '}';
+                    if ('preparation' in item && item.preparation) stepStr += `(${item.preparation})`
                 }
             }
 
